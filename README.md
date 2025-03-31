@@ -1,6 +1,6 @@
 # smart_watch_sleep_tracker_algo
 This pseudocode mimics how smartwatches/ Rings estimate sleep cycles
-# Smartwatch Sleep Tracking: The Guts Behind the Guesses
+# Smartwatch Sleep Tracking
 
 ## Overview
 This repo contains pseudocode for a smartwatch sleep cycle detection algorithm. It mimics how devices like the Apple Watch or Oura Ring guess sleep stages (Awake, Light, Deep, REM) using proxy data—motion (accelerometer), heart rate, and HRV (PPG sensor). No brainwaves here, just educated guesses. Studies peg accuracy at 60-80% for sleep/wake, 50-75% for stages. It’s a toy, not a lab.
