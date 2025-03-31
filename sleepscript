@@ -1,0 +1,103 @@
+// Pseudocode: Sleep Cycle Detection Algorithm for a Smartwatch                  
+// Simulates wearable sleep stage guesses (Awake, Light, Deep, REM)               
+CONST MOTION_THRESHOLD = 0.1                                                    // Low motion = asleep? (0-1 scale)
+CONST HR_DROP_THRESHOLD = 5                                                     // bpm drop to flag sleep onset
+CONST EPOCH_DURATION = 30                                                       // Secs per epoch chunk
+CONST MIN_SLEEP_CYCLE = 5400                                                    // 90 min in secs for smoothing
+CONST SAMPLE_RATE = 1                                                           // Hz, 1 sample/sec
+baselineHR = 0                                                                  // Awake HR baseline
+isAsleep = False                                                                // Sleep state flag
+sleepData = []                                                                  // Epochs: {time, motion, hr, hrv, stage}
+function trackSleepCycle():                                                     // Core loop: detect, collect, process sleep
+    baselineHR = calibrateBaselineHR()                                          // Set awake HR ref
+    while devicePoweredOn:                                                      // Runs till battery dies
+        currentTime = getSystemTime()                                           // Timestamp
+        motion = getAccelerometerData()                                         // 0-1 movement
+        hr = getHeartRate()                                                     // bpm from PPG
+        hrv = calculateHRV(hr, window=60)                                       // HRV over 60 sec
+
+    if not isAsleep:                                                        // Check sleep start
+        if motion < MOTION_THRESHOLD and hr < baselineHR - HR_DROP_THRESHOLD:// Still + slow HR = asleep
+            isAsleep = True                                                     // Flag it
+            sleepStart = currentTime                                            // Mark onset
+            print("Sleep detected at:", sleepStart)                             // Log it
+    
+    if isAsleep:                                                            // While asleep...
+        if currentTime % EPOCH_DURATION == 0:                               // Every 30 sec
+            epoch = {                                                       // Build epoch
+                "time": currentTime,                                        // When
+                "motion": motion,                                           // How much wiggle
+                "hr": hr,                                                   // Beats
+                "hrv": hrv,                                                 // Variability
+                "stage": null                                               // Stage TBD
+            }                                                               //
+            sleepData.append(epoch)                                         // Store it
+        
+        if motion > MOTION_THRESHOLD * 2 and hr > baselineHR:           // Big move + HR jump = awake
+            isAsleep = False                                                // End sleep
+            processSleepData(sleepData)                                     // Crunch data
+            sleepData = []                                                  // Reset
+            print("Wake detected at:", currentTime)                         // Log wake
+function calibrateBaselineHR():                                                 // Avg HR over 5 min awake
+    hrSamples = []                                                              // Collect samples
+    for i = 0 to 300:                                                           // 5 min @ 1 Hz
+        hrSamples.append(getHeartRate())                                        // Grab HR
+        delay(1 / SAMPLE_RATE)                                                  // Pause 1 sec
+    return average(hrSamples)                                                   // Return avg
+function calculateHRV(hr, window):                                              // HRV = SD of RR intervals
+    beatIntervals = []                                                          // RR in ms
+    for i = 0 to window:                                                        // 60-sec window
+        bpm = getHeartRate()                                                    // Current bpm
+        rr = 60000 / bpm                                                        // bpm to ms
+        beatIntervals.append(rr)                                                // Store interval
+        delay(1 / SAMPLE_RATE)                                                  // Pause
+    return standardDeviation(beatIntervals)                                     // Calc SD
+function classifySleepStages(data, model):                                      // Guess stages w/ ML or heuristic
+    for epoch in data:                                                          // Each epoch
+        features = [epoch["motion"], epoch["hr"], epoch["hrv"]]                 // Sensor inputs
+        stage = model.predict(features)                                         // ML guess
+        if model is null:                                                       // No model? Use this
+            if epoch["motion"] > MOTION_THRESHOLD:                              // Moving = awake
+                stage = "Awake"                                                 //
+            else if epoch["hr"] < baselineHR - 15 and epoch["hrv"] > 20:        // Low HR, high HRV = deep
+                stage = "Deep"                                                  //
+            else if epoch["motion"] < 0.05 and epoch["hrv"] < 10:               // Still, low HRV = REM
+                stage = "REM"                                                   //
+            else:                                                               // Else, light
+                stage = "Light"                                                 //
+        epoch["stage"] = stage                                                  // Assign stage
+    return data                                                                 // Return updated
+function smoothStages(data):                                                    // Fix jittery stage jumps
+    smoothedData = copy(data)                                                   // Copy to edit
+    for i = 1 to length(data) - 1:                                              // Scan epochs
+        prevStage = smoothedData[i-1]["stage"]                                  // Before
+        currStage = smoothedData[i]["stage"]                                    // Now
+        nextStage = smoothedData[i+1]["stage"]                                  // After
+        if (currStage != prevStage and currStage != nextStage and               // Blip check
+            data[i+1]["time"] - data[i-1]["time"] < 120):                      // < 2 min
+            smoothedData[i]["stage"] = prevStage                                // Smooth it
+    return smoothedData                                                         // Return fixed
+function processSleepData(data):                                                // Turn epochs into stats
+    if length(data) == 0:                                                       // No data?
+        print("No sleep data recorded")                                         // Say so
+        return                                                                  //
+    trainedModel = loadSleepModel()                                             // Load ML model
+    classifiedData = classifySleepStages(data, trainedModel)                    // Label stages
+    smoothedData = smoothStages(classifiedData)                                 // Smooth it
+    totalSleep = length(smoothedData) * EPOCH_DURATION / 3600                   // Hours slept
+    stageCounts = {"Awake": 0, "Light": 0, "Deep": 0, "REM": 0}                 // Tally stages
+    for epoch in smoothedData:                                                  // Count each
+        stageCounts[epoch["stage"]] += 1                                        //
+    stagePercentages = {}                                                       // Calc %s
+    for stage in stageCounts:                                                   //
+        stagePercentages[stage] = (stageCounts[stage] / length(smoothedData)) * 100  //
+    print("Total Sleep:", totalSleep, "hours")                                  // Show time
+    print("Stage Breakdown:", stagePercentages)                                 // Show breakdown
+    renderSleepChart(smoothedData)                                              // Draw chart
+function getAccelerometerData():                                                // Fake motion data
+    return random(0, 1)                                                         // 0 = still, 1 = active
+function getHeartRate():                                                        // Fake HR data
+    return random(50, 100)                                                      // bpm range
+trackSleepCycle()                                                               // Start it
+// Notes: No EEG = ~20% REM error vs. PSG. Population-based, flops for outliers.  // Extend: Add ML, tweak thresholds.
+
